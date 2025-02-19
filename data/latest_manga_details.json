@@ -1,0 +1,9 @@
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "popular_manga": [],
+    "new_manga": []
+  },
+  "timestamp": 1739967051
+}
