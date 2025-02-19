@@ -58,13 +58,45 @@ def save_api_result(links):
         # 生成时间戳文件名
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
+        # 处理更新信息中的漫画详情
+        updates = links.get('updates', [])
+        hot_updates = links.get('hot_updates', [])
+        manga_details_map = {}
+        
+        # 从更新信息中提取详情
+        for manga in updates:
+            if 'detail' in manga:
+                manga_details_map[manga['link']] = manga['detail']
+                del manga['detail']
+                
+        for manga in hot_updates:
+            if 'detail' in manga:
+                manga_details_map[manga['link']] = manga['detail']
+                del manga['detail']
+        
+        # 处理人气排行和最新上架中的漫画详情
+        popular_manga = links.get('popular_manga', [])
+        new_manga = links.get('new_manga', [])
+        
+        for manga in popular_manga:
+            if 'detail' in manga:
+                manga_details_map[manga['link']] = manga['detail']
+                del manga['detail']
+                
+        for manga in new_manga:
+            if 'detail' in manga:
+                manga_details_map[manga['link']] = manga['detail']
+                del manga['detail']
+        
         # 创建更新信息的数据结构
         updates_data = {
             'code': 200,
             'message': 'success',
             'data': {
-                'updates': links.get('updates', []),
-                'hot_updates': links.get('hot_updates', [])
+                'updates': updates,
+                'hot_updates': hot_updates,
+                'popular_manga': popular_manga,
+                'new_manga': new_manga
             },
             'timestamp': int(time.time())
         }
@@ -74,8 +106,7 @@ def save_api_result(links):
             'code': 200,
             'message': 'success',
             'data': {
-                'popular_manga': links.get('popular_manga', []),
-                'new_manga': links.get('new_manga', [])
+                'manga_details': manga_details_map
             },
             'timestamp': int(time.time())
         }
@@ -262,10 +293,11 @@ def process_chapter(chapter_element, base_url):
 
 def process_manga_detail(manga_info, scraper):
     try:
-        detail = fetch_manga_detail(manga_info['link'], scraper)
-        if detail:
-            manga_info['detail'] = detail
-            thread_safe_log('info', f"成功获取漫画详情: {manga_info['title']}")
+        # 暂时注释掉详情页获取
+        # detail = fetch_manga_detail(manga_info['link'], scraper)
+        # if detail:
+        #     manga_info['detail'] = detail
+        #     thread_safe_log('info', f"成功获取漫画详情: {manga_info['title']}")
         return manga_info
     except Exception as e:
         thread_safe_log('warning', f"获取漫画详情时出错: {str(e)}")
@@ -284,75 +316,79 @@ def process_manga_list_with_threads(manga_list, max_workers=3):
         if not manga_list:
             return []
             
-        # 创建一个共享的 cloudscraper 会话
-        thread_safe_log('info', "创建共享的 cloudscraper 会话...")
-        scraper = cloudscraper.create_scraper(
-            browser={
-                'browser': 'chrome',
-                'platform': 'darwin',
-                'mobile': False
-            },
-            delay=10
-        )
-        scraper.proxies = PROXY_CONFIG
+        # 暂时直接返回原始列表，不获取详情
+        return manga_list
+            
+        # 以下代码暂时注释掉
+        # # 创建一个共享的 cloudscraper 会话
+        # thread_safe_log('info', "创建共享的 cloudscraper 会话...")
+        # scraper = cloudscraper.create_scraper(
+        #     browser={
+        #         'browser': 'chrome',
+        #         'platform': 'darwin',
+        #         'mobile': False
+        #     },
+        #     delay=10
+        # )
+        # scraper.proxies = PROXY_CONFIG
         
-        # 分批处理漫画列表
-        batch_size = 5  # 每批处理的数量
-        results = []
+        # # 分批处理漫画列表
+        # batch_size = 5  # 每批处理的数量
+        # results = []
         
-        for i in range(0, len(manga_list), batch_size):
-            try:
-                batch = manga_list[i:i + batch_size]
-                thread_safe_log('info', f"处理第 {i//batch_size + 1} 批漫画，共 {len(batch)} 个")
+        # for i in range(0, len(manga_list), batch_size):
+        #     try:
+        #         batch = manga_list[i:i + batch_size]
+        #         thread_safe_log('info', f"处理第 {i//batch_size + 1} 批漫画，共 {len(batch)} 个")
                 
-                # 创建线程池
-                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    # 设置超时时间为60秒
-                    timeout = 60
+        #         # 创建线程池
+        #         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        #             # 设置超时时间为60秒
+        #             timeout = 60
                     
-                    # 提交所有任务到线程池
-                    future_to_manga = {
-                        executor.submit(process_manga_detail, manga, scraper): manga 
-                        for manga in batch
-                    }
+        #             # 提交所有任务到线程池
+        #             future_to_manga = {
+        #                 executor.submit(process_manga_detail, manga, scraper): manga 
+        #                 for manga in batch
+        #             }
                     
-                    # 使用超时控制获取结果
-                    try:
-                        for future in concurrent.futures.as_completed(future_to_manga, timeout=timeout):
-                            try:
-                                manga_info = future.result(timeout=timeout)
-                                if manga_info:
-                                    results.append(manga_info)
-                            except concurrent.futures.TimeoutError:
-                                thread_safe_log('warning', f"处理漫画信息超时")
-                                continue
-                            except Exception as e:
-                                thread_safe_log('error', f"处理漫画信息时出错: {str(e)}")
-                                continue
-                    except concurrent.futures.TimeoutError:
-                        thread_safe_log('warning', f"批次处理超时，继续处理下一批")
-                        # 取消所有未完成的任务
-                        for future in future_to_manga:
-                            future.cancel()
-                        continue
+        #             # 使用超时控制获取结果
+        #             try:
+        #                 for future in concurrent.futures.as_completed(future_to_manga, timeout=timeout):
+        #                     try:
+        #                         manga_info = future.result(timeout=timeout)
+        #                         if manga_info:
+        #                             results.append(manga_info)
+        #                     except concurrent.futures.TimeoutError:
+        #                         thread_safe_log('warning', f"处理漫画信息超时")
+        #                         continue
+        #                     except Exception as e:
+        #                         thread_safe_log('error', f"处理漫画信息时出错: {str(e)}")
+        #                         continue
+        #             except concurrent.futures.TimeoutError:
+        #                 thread_safe_log('warning', f"批次处理超时，继续处理下一批")
+        #                 # 取消所有未完成的任务
+        #                 for future in future_to_manga:
+        #                     future.cancel()
+        #                 continue
                     
-                # 批次间添加随机延迟
-                if i + batch_size < len(manga_list):
-                    delay = random.uniform(3, 8)
-                    thread_safe_log('info', f"等待 {delay:.2f} 秒后处理下一批...")
-                    time.sleep(delay)
+        #         # 批次间添加随机延迟
+        #         if i + batch_size < len(manga_list):
+        #             delay = random.uniform(3, 8)
+        #             thread_safe_log('info', f"等待 {delay:.2f} 秒后处理下一批...")
+        #             time.sleep(delay)
                     
-            except KeyboardInterrupt:
-                thread_safe_log('warning', "检测到手动中断，正在优雅退出...")
-                return results
-            except Exception as e:
-                thread_safe_log('error', f"处理批次时出错: {str(e)}")
-                continue
+        #     except KeyboardInterrupt:
+        #         thread_safe_log('warning', "检测到手动中断，正在优雅退出...")
+        #         return results
+        #     except Exception as e:
+        #         thread_safe_log('error', f"处理批次时出错: {str(e)}")
+        #         continue
                 
-        return results
+        # return results
     except KeyboardInterrupt:
         thread_safe_log('warning', "检测到手动中断，正在优雅退出...")
-        return results
+        return manga_list
     except Exception as e:
         thread_safe_log('error', f"多线程处理时出错: {str(e)}")
         return manga_list
@@ -374,6 +410,73 @@ def extract_links(html_content, base_url='https://g-mh.org/'):
         manga_cards = tree.xpath('//a[@class="slicarda"]')
         thread_safe_log('info', f"找到漫画卡片数量: {len(manga_cards)}")
         
+        # 查找热门更新
+        hot_updates_section = tree.xpath('/html/body/main/div/div[6]/div[1]/div[2]/div')
+        thread_safe_log('info', f"找到热门更新数量: {len(hot_updates_section)}")
+        
+        # 处理热门更新
+        for index, item in enumerate(hot_updates_section, 1):
+            try:
+                # 提取链接
+                link_element = item.xpath('.//a')[0] if item.xpath('.//a') else None
+                if not link_element:
+                    continue
+                    
+                # 提取标题
+                title_element = item.xpath('.//h3/text()')
+                title = title_element[0].strip() if title_element else "未知标题"
+                
+                # 提取图片 - 使用多种方法尝试
+                img_element = None
+                img_url = ''
+                
+                # 方法1：使用完整XPath
+                img_xpath = f'/html/body/main/div/div[6]/div[1]/div[2]/div[{index}]/a/div/div/img'
+                img_elements = tree.xpath(img_xpath)
+                if img_elements:
+                    img_element = img_elements[0]
+                    img_url = img_element.get('src', '')
+                    thread_safe_log('info', f"方法1找到图片: {img_url}")
+                    
+                # 方法2：使用相对XPath
+                if not img_url:
+                    img_elements = item.xpath('.//img')
+                    if img_elements:
+                        img_element = img_elements[0]
+                        img_url = img_element.get('src', '')
+                        thread_safe_log('info', f"方法2找到图片: {img_url}")
+                        
+                # 方法3：直接从link_element中查找
+                if not img_url and link_element is not None:
+                    img_elements = link_element.xpath('.//img')
+                    if img_elements:
+                        img_element = img_elements[0]
+                        img_url = img_element.get('src', '')
+                        thread_safe_log('info', f"方法3找到图片: {img_url}")
+                
+                if not img_url:
+                    thread_safe_log('warning', f"所有方法都未找到图片: {title}")
+                    
+                # 处理图片URL
+                img_url = process_image_url(img_url) if img_url else ''
+                thread_safe_log('info', f"处理后的图片URL: {img_url}")
+                
+                # 获取链接
+                link = urljoin(base_url, link_element.get('href', ''))
+                
+                manga_info = {
+                    'title': title,
+                    'link': link,
+                    'image_url': img_url
+                }
+                
+                links['hot_updates'].append(manga_info)
+                thread_safe_log('info', f"添加到热门更新: {title}, 图片URL: {img_url}")
+                
+            except Exception as e:
+                thread_safe_log('warning', f"处理热门更新项时出错: {str(e)}")
+                continue
+        
         for card in manga_cards:
             try:
                 # 提取基本信息
@@ -389,6 +492,8 @@ def extract_links(html_content, base_url='https://g-mh.org/'):
                 # 提取图片信息
                 img = card.xpath('.//img[@class="slicardimg"]')[0]
                 img_url = img.get('src', '')
+                # 处理图片URL
+                img_url = process_image_url(img_url)
                 
                 manga_info = {
                     'title': title,
@@ -405,43 +510,120 @@ def extract_links(html_content, base_url='https://g-mh.org/'):
                     links['updates'].append(manga_info)
                     thread_safe_log('info', f"添加到更新列表: {title}")
                 
-                # 添加到热门更新
-                if len(links['hot_updates']) < 10:
-                    links['hot_updates'].append(manga_info)
-                    thread_safe_log('info', f"添加到热门更新: {title}")
-                
             except Exception as e:
                 thread_safe_log('warning', f"处理漫画卡片时出错: {str(e)}")
                 continue
         
         # 查找排行榜漫画
-        rank_section = tree.xpath('//div[contains(@class, "rank-list")]//a')
+        rank_section = tree.xpath('/html/body/main/div/div[6]/div[2]/div[2]/div')
         if rank_section:
-            for item in rank_section[:10]:  # 只取前10个
+            for index, item in enumerate(rank_section, 1):
                 try:
-                    title = item.xpath('.//text()')[0].strip()
-                    link = urljoin(base_url, item.get('href', ''))
-                    links['popular_manga'].append({
+                    # 提取链接
+                    link_element = item.xpath('.//a')[0] if item.xpath('.//a') else None
+                    if not link_element:
+                        continue
+                        
+                    # 提取标题
+                    title_element = item.xpath('.//a/div/h3/text()')
+                    title = title_element[0].strip() if title_element else "未知标题"
+                    
+                    # 提取图片 - 使用多种方法尝试
+                    img_element = None
+                    img_url = ''
+                    
+                    # 方法1：使用完整XPath
+                    img_xpath = f'/html/body/main/div/div[6]/div[2]/div[2]/div[{index}]/a/div/div/img'
+                    img_elements = tree.xpath(img_xpath)
+                    if img_elements:
+                        img_element = img_elements[0]
+                        img_url = img_element.get('src', '')
+                        thread_safe_log('info', f"方法1找到图片: {img_url}")
+                        
+                    # 方法2：使用相对XPath
+                    if not img_url:
+                        img_elements = item.xpath('.//img')
+                        if img_elements:
+                            img_element = img_elements[0]
+                            img_url = img_element.get('src', '')
+                            thread_safe_log('info', f"方法2找到图片: {img_url}")
+                            
+                    # 方法3：直接从link_element中查找
+                    if not img_url and link_element is not None:
+                        img_elements = link_element.xpath('.//img')
+                        if img_elements:
+                            img_element = img_elements[0]
+                            img_url = img_element.get('src', '')
+                            thread_safe_log('info', f"方法3找到图片: {img_url}")
+                    
+                    if not img_url:
+                        thread_safe_log('warning', f"所有方法都未找到图片: {title}")
+                        
+                    # 处理图片URL
+                    img_url = process_image_url(img_url) if img_url else ''
+                    thread_safe_log('info', f"处理后的图片URL: {img_url}")
+                    
+                    # 获取链接
+                    link = urljoin(base_url, link_element.get('href', ''))
+                    
+                    manga_info = {
                         'title': title,
-                        'link': link
-                    })
-                    thread_safe_log('info', f"添加到排行榜: {title}")
+                        'link': link,
+                        'image_url': img_url
+                    }
+                    
+                    links['popular_manga'].append(manga_info)
+                    thread_safe_log('info', f"添加到排行榜: {title}, 图片URL: {img_url}")
                 except Exception as e:
                     thread_safe_log('warning', f"处理排行榜项时出错: {str(e)}")
                     continue
         
         # 查找最新上架
-        new_section = tree.xpath('//div[contains(@class, "new-manga")]//a')
+        new_section = tree.xpath('/html/body/main/div/div[6]/div[3]/div[2]/div')
         if new_section:
-            for item in new_section[:10]:  # 只取前10个
+            for index, item in enumerate(new_section, 1):
                 try:
-                    title = item.xpath('.//text()')[0].strip()
-                    link = urljoin(base_url, item.get('href', ''))
-                    links['new_manga'].append({
+                    # 使用精确的XPath路径提取信息
+                    # 提取标题
+                    title_xpath = f'/html/body/main/div/div[6]/div[3]/div[2]/div[{index}]/a/div/h3'
+                    title_element = tree.xpath(title_xpath)
+                    title = title_element[0].text.strip() if title_element else None
+                    
+                    if not title:
+                        thread_safe_log('warning', f"未找到标题，跳过此项")
+                        continue
+                    
+                    # 提取链接
+                    link_xpath = f'/html/body/main/div/div[6]/div[3]/div[2]/div[{index}]/a'
+                    link_element = tree.xpath(link_xpath)
+                    if not link_element:
+                        thread_safe_log('warning', f"未找到链接，跳过此项: {title}")
+                        continue
+                    link = urljoin(base_url, link_element[0].get('href', ''))
+                    
+                    # 提取图片
+                    img_xpath = f'/html/body/main/div/div[6]/div[3]/div[2]/div[{index}]/a/div/div/img'
+                    img_element = tree.xpath(img_xpath)
+                    img_url = ''
+                    if img_element:
+                        img_url = img_element[0].get('src', '')
+                        thread_safe_log('info', f"找到图片: {img_url}")
+                    else:
+                        thread_safe_log('warning', f"未找到图片: {title}")
+                    
+                    # 处理图片URL
+                    img_url = process_image_url(img_url) if img_url else ''
+                    thread_safe_log('info', f"处理后的图片URL: {img_url}")
+                    
+                    manga_info = {
                         'title': title,
-                        'link': link
-                    })
-                    thread_safe_log('info', f"添加到最新上架: {title}")
+                        'link': link,
+                        'image_url': img_url
+                    }
+                    
+                    links['new_manga'].append(manga_info)
+                    thread_safe_log('info', f"添加到最新上架: {title}, 图片URL: {img_url}")
+                    
                 except Exception as e:
                     thread_safe_log('warning', f"处理最新上架项时出错: {str(e)}")
                     continue
@@ -477,6 +659,34 @@ def extract_links(html_content, base_url='https://g-mh.org/'):
     except Exception as e:
         thread_safe_log('error', f"提取链接时出错: {str(e)}", exc_info=True)
         return None
+
+def process_image_url(img_url):
+    """
+    处理图片URL，支持多种域名和格式
+    
+    Args:
+        img_url: 原始图片URL
+    
+    Returns:
+        处理后的图片URL
+    """
+    try:
+        # 检查是否是新的API格式
+        if 'pro-api.mgsearcher.com/_next/image' in img_url:
+            # 已经是正确格式，直接返回
+            return img_url
+            
+        # 检查是否包含cncover.godamanga.online
+        if 'cncover.godamanga.online' in img_url:
+            # 构建新的API URL
+            encoded_url = quote(img_url, safe='')
+            return f'https://pro-api.mgsearcher.com/_next/image?url={encoded_url}&w=250&q=60'
+            
+        # 其他情况保持原样
+        return img_url
+    except Exception as e:
+        thread_safe_log('warning', f"处理图片URL时出错: {str(e)}")
+        return img_url
 
 class CloudflareSession:
     _instance = None
