@@ -6,4 +6,6 @@ beautifulsoup4==4.12.3
 schedule>=1.2.1
 flask>=3.0.2
 flask-cors>=4.0.0
-lxml>=5.1.0 
+lxml>=5.1.0
+flask[async]
+python-dotenv 

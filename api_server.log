@@ -1,0 +1,144 @@
+2025-02-20 15:36:48,318 - INFO - API服务器启动...
+2025-02-20 15:36:48,318 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:36:50,671 - INFO - 使用 cloudscraper 访问网站...
+2025-02-20 15:36:51,618 - INFO - 成功获取响应!
+2025-02-20 15:36:51,638 - INFO - 找到 30 个更新卡片
+2025-02-20 15:36:51,639 - INFO - 找到 12 个排行榜项目
+2025-02-20 15:36:51,640 - INFO - 找到 12 个最新上架
+2025-02-20 15:36:51,640 - INFO - 找到 12 个热门更新
+2025-02-20 15:39:10,988 - INFO - API服务器启动...
+2025-02-20 15:39:13,194 - INFO - 使用 cloudscraper 访问网站...
+2025-02-20 15:39:13,741 - INFO - 成功获取响应!
+2025-02-20 15:39:13,757 - INFO - 找到 30 个更新卡片
+2025-02-20 15:39:13,758 - INFO - 找到 12 个排行榜项目
+2025-02-20 15:39:13,759 - INFO - 找到 12 个最新上架
+2025-02-20 15:39:13,759 - INFO - 找到 12 个热门更新
+2025-02-20 15:39:59,745 - INFO - API服务器启动...
+2025-02-20 15:39:59,746 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:40:03,192 - INFO - 使用 cloudscraper 访问网站...
+2025-02-20 15:40:03,595 - INFO - 成功获取响应!
+2025-02-20 15:40:03,614 - INFO - 找到 30 个更新卡片
+2025-02-20 15:40:03,615 - INFO - 找到 12 个排行榜项目
+2025-02-20 15:40:03,616 - INFO - 找到 12 个最新上架
+2025-02-20 15:40:03,616 - INFO - 找到 12 个热门更新
+2025-02-20 15:41:34,538 - INFO - API服务器启动...
+2025-02-20 15:41:34,539 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:41:37,625 - INFO - 接收到图片代理请求: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:41:59,478 - ERROR - 端口 7056 已被占用
+2025-02-20 15:42:13,745 - INFO - API服务器启动...
+2025-02-20 15:42:13,745 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:42:21,214 - INFO - 接收到图片代理请求: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:42:21,223 - INFO - 请求原始URL: https://g-mh.org/manga/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:42:43,949 - INFO - API服务器启动...
+2025-02-20 15:42:43,950 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:42:48,119 - INFO - Proxying image from: https://img.godamanga.online/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:42:48,899 - ERROR - Error proxying image: HTTPSConnectionPool(host='img.godamanga.online', port=443): Max retries exceeded with url: /zhainandalanqiu-hongyuanjian-2/24125-053785980-818 (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)')))
+2025-02-20 15:43:49,408 - INFO - API服务器启动...
+2025-02-20 15:43:49,409 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:43:53,095 - INFO - Proxying image request for path: cover/bzcom/zhainandalanqiu/zhainandalanqiu-hongyuanjian.webp
+2025-02-20 15:43:53,096 - INFO - Requesting from URL: https://cover1.baozimh.org/cover/bzcom/zhainandalanqiu/zhainandalanqiu-hongyuanjian.webp
+2025-02-20 15:43:53,985 - INFO - Response status code: 200
+2025-02-20 15:43:53,985 - INFO - Response headers: {'Date': 'Thu, 20 Feb 2025 07:43:54 GMT', 'Content-Type': 'image/webp', 'Content-Length': '24878', 'Connection': 'keep-alive', 'last-modified': 'Sun, 26 Mar 2023 09:32:34 GMT', 'etag': '"64201132-612e"', 'strict-transport-security': 'max-age=31536000', 'CF-Cache-Status': 'HIT', 'Accept-Ranges': 'bytes', 'Server-Timing': 'cfCacheStatus;desc="HIT", cfL4;desc="?proto=TCP&rtt=1416&min_rtt=1335&rtt_var=558&sent=4&recv=6&lost=0&retrans=0&sent_bytes=2869&recv_bytes=1035&delivery_rate=2169288&cwnd=251&unsent_bytes=0&cid=40dbe3d8a5c2762b&ts=801&x=0"', 'Report-To': '{"endpoints":[{"url":"https:\\/\\/a.nel.cloudflare.com\\/report\\/v4?s=oaYvLFB0JpULAu9N8UfT4QFzhJlffd8YBOBhAxbT2%2FEC8pv9%2Bp2eLYSVEb2O3NY8e8OneD6PRufzuEs3hTWLlBAGouSOfXZnAX3t0FS6A2ugWHpsmUVVBECFniEZKamX7ly4uYI%3D"}],"group":"cf-nel","max_age":604800}', 'NEL': '{"success_fraction":0,"report_to":"cf-nel","max_age":604800}', 'Vary': 'Accept-Encoding', 'Server': 'cloudflare', 'CF-RAY': '914cde4609b07378-NRT', 'alt-svc': 'h3=":443"; ma=86400'}
+2025-02-20 15:43:53,985 - INFO - Determined content type: image/webp
+2025-02-20 15:43:53,985 - INFO - Successfully proxied image
+2025-02-20 15:44:07,519 - INFO - Proxying image request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:44:07,519 - INFO - Requesting from URL: https://cover1.baozimh.org/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:44:08,096 - INFO - Response status code: 404
+2025-02-20 15:44:08,096 - INFO - Response headers: {'Date': 'Thu, 20 Feb 2025 07:44:08 GMT', 'Content-Type': 'text/html', 'Transfer-Encoding': 'chunked', 'Connection': 'keep-alive', 'CF-Cache-Status': 'MISS', 'Server-Timing': 'cfCacheStatus;desc="MISS", cfL4;desc="?proto=TCP&rtt=1426&min_rtt=1426&rtt_var=535&sent=5&recv=5&lost=0&retrans=0&sent_bytes=2870&recv_bytes=947&delivery_rate=2835904&cwnd=243&unsent_bytes=0&cid=ffa3d56231736234&ts=483&x=0"', 'Report-To': '{"endpoints":[{"url":"https:\\/\\/a.nel.cloudflare.com\\/report\\/v4?s=u7ZiONgsEnGsA%2BgShZAqsPhxONLz41CvbHiyEt8YCtbzAtBCrKNwfhylqSmzHKIYIIu1MDMVpk4Qvi0OxKz7FWf0SowcoGp3SW1OnHeYMNSrZK5pb%2FBatu9prAOQu0fI7t35pyeB1W4tadlzL6gTzNQ%3D"}],"group":"cf-nel","max_age":604800}', 'NEL': '{"success_fraction":0,"report_to":"cf-nel","max_age":604800}', 'Vary': 'Accept-Encoding', 'Server': 'cloudflare', 'CF-RAY': '914cdea0b8b680ed-NRT', 'Content-Encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'}
+2025-02-20 15:44:08,096 - ERROR - Failed to fetch image, status code: 404
+2025-02-20 15:44:08,096 - ERROR - Error proxying image: Failed to fetch image: 404
+2025-02-20 15:44:42,997 - INFO - API服务器启动...
+2025-02-20 15:44:42,997 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:44:48,038 - INFO - Proxying image request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:44:48,039 - INFO - Requesting from URL: https://img.godamanga.online/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:44:48,225 - ERROR - Error proxying image: HTTPSConnectionPool(host='img.godamanga.online', port=443): Max retries exceeded with url: /zhainandalanqiu-hongyuanjian-2/24125-053785980-818 (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)')))
+2025-02-20 15:45:15,667 - ERROR - 端口 7056 已被占用
+2025-02-20 15:45:19,470 - INFO - Proxying image request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:45:19,471 - INFO - Requesting from URL: https://img.godamanga.online/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:45:19,938 - ERROR - Error proxying image: HTTPSConnectionPool(host='img.godamanga.online', port=443): Max retries exceeded with url: /zhainandalanqiu-hongyuanjian-2/24125-053785980-818 (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)')))
+2025-02-20 15:45:51,939 - INFO - API服务器启动...
+2025-02-20 15:45:51,939 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:45:55,812 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:45:55,812 - INFO - Path parts: ['zhainandalanqiu-hongyuanjian-2', '24125-053785980-818', '1.jpg']
+2025-02-20 15:45:55,812 - INFO - Constructed chapter image path: hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:45:55,812 - INFO - Final URL: https://img.godamanga.online/hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:45:55,997 - ERROR - Error proxying image: HTTPSConnectionPool(host='img.godamanga.online', port=443): Max retries exceeded with url: /hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)')))
+2025-02-20 15:47:10,883 - INFO - API服务器启动...
+2025-02-20 15:47:10,883 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:47:15,559 - INFO - Received proxy request for path: zongyoulaoshiyaoqingjiazhang-19262/29403-7911216-85
+2025-02-20 15:47:15,560 - INFO - Constructed manga path: manga/zongyoulaoshiyaoqingjiazhang-19262/29403-7911216-85
+2025-02-20 15:47:15,560 - INFO - Final URL: https://g-mh.org/manga/zongyoulaoshiyaoqingjiazhang-19262/29403-7911216-85
+2025-02-20 15:47:15,741 - INFO - Response status code: 200
+2025-02-20 15:47:15,741 - INFO - Response headers: {'Date': 'Thu, 20 Feb 2025 07:47:15 GMT', 'Content-Type': 'text/html', 'Transfer-Encoding': 'chunked', 'Connection': 'keep-alive', 'vary': 'Accept-Encoding', 'Cache-Control': 'max-age=43200', 'strict-transport-security': 'max-age=31536000, max-age=31536000', 'Last-Modified': 'Thu, 20 Feb 2025 07:44:46 GMT', 'CF-Cache-Status': 'HIT', 'Age': '149', 'Report-To': '{"endpoints":[{"url":"https:\\/\\/a.nel.cloudflare.com\\/report\\/v4?s=PUbLmGk7g95xWiL54TfHGEPFabIZLHAuoVq%2F%2Fm4FYYkn%2FQdW2qgBQES5yy4dD8q7CZZlEqHdRFbONh1p7bOsoZ57XLIX66lv06lJIa8nRCjJOSVLt%2FtSsnCGBG%2FoqZ%2B4JH26aPqmMA%3D%3D"}],"group":"cf-nel","max_age":604800}', 'NEL': '{"success_fraction":0,"report_to":"cf-nel","max_age":604800}', 'Server': 'cloudflare', 'CF-RAY': '914ce3378fe4735d-NRT', 'Content-Encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400', 'server-timing': 'cfL4;desc="?proto=TCP&rtt=1427&min_rtt=1412&rtt_var=415&sent=5&recv=7&lost=0&retrans=0&sent_bytes=2862&recv_bytes=1004&delivery_rate=2745417&cwnd=172&unsent_bytes=0&cid=018d752ceaf0d5a0&ts=91&x=0"'}
+2025-02-20 15:47:15,741 - INFO - Determined content type: text/html
+2025-02-20 15:47:15,741 - INFO - Successfully proxied image
+2025-02-20 15:47:47,980 - INFO - API服务器启动...
+2025-02-20 15:47:47,981 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:47:50,852 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:47:50,852 - INFO - Constructed manga path: hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:47:50,852 - INFO - Final URL: https://img.godamanga.online/hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:47:51,032 - ERROR - Error proxying image: HTTPSConnectionPool(host='img.godamanga.online', port=443): Max retries exceeded with url: /hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)')))
+2025-02-20 15:49:20,304 - INFO - API服务器启动...
+2025-02-20 15:49:20,305 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:49:31,614 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:49:31,615 - INFO - Constructed manga path: hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:49:31,615 - INFO - Final URL: https://img.godamanga.online/hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:49:31,644 - ERROR - Error proxying image: Cannot set verify_mode to CERT_NONE when check_hostname is enabled.
+2025-02-20 15:50:08,276 - INFO - API服务器启动...
+2025-02-20 15:50:08,276 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:50:11,584 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:50:11,584 - INFO - Constructed manga path: hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:50:11,584 - INFO - Final URL: https://img.godamanga.online/hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:50:11,597 - ERROR - Error proxying image: HTTPSConnectionPool(host='img.godamanga.online', port=443): Max retries exceeded with url: /hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg (Caused by ProxyError('Unable to connect to proxy', NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x103348ec0>: Failed to establish a new connection: [Errno 61] Connection refused')))
+2025-02-20 15:51:33,384 - INFO - API服务器启动...
+2025-02-20 15:51:33,384 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:51:37,654 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:51:37,654 - INFO - Constructed manga path: hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:51:37,654 - INFO - Final URL: https://img.godamanga.online/hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:51:37,670 - ERROR - Error proxying image: HTTPSConnectionPool(host='img.godamanga.online', port=443): Max retries exceeded with url: /hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg (Caused by ProxyError('Unable to connect to proxy', NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x106f14ec0>: Failed to establish a new connection: [Errno 61] Connection refused')))
+2025-02-20 15:52:25,405 - INFO - API服务器启动...
+2025-02-20 15:52:25,405 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:52:29,309 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:52:29,309 - INFO - Constructed manga path: hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:52:29,309 - INFO - Final URL: https://img.godamanga.online/hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:52:29,326 - ERROR - Error proxying image: Cannot set verify_mode to CERT_NONE when check_hostname is enabled.
+2025-02-20 15:53:04,684 - INFO - API服务器启动...
+2025-02-20 15:53:04,685 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:53:07,758 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:53:07,758 - INFO - Constructed manga path: hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:53:07,758 - INFO - Final URL: https://img.godamanga.online/hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:53:07,940 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)')': /hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:53:07,950 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)')': /hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:53:07,959 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)')': /hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg
+2025-02-20 15:53:07,969 - ERROR - Error proxying image: HTTPSConnectionPool(host='img.godamanga.online', port=443): Max retries exceeded with url: /hp/zhainandalanqiu-hongyuanjian-2/24125-053785980-818/1.jpg (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1028)')))
+2025-02-20 15:55:38,369 - INFO - API服务器启动...
+2025-02-20 15:55:38,370 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:55:41,174 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:55:41,174 - INFO - Fetching chapter page: https://g-mh.org/manga/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:55:41,187 - ERROR - Error proxying chapter: Cannot set verify_mode to CERT_NONE when check_hostname is enabled.
+2025-02-20 15:56:16,256 - INFO - API服务器启动...
+2025-02-20 15:56:16,257 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:56:19,337 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:56:19,337 - INFO - Fetching chapter page: https://g-mh.org/manga/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:56:19,827 - ERROR - Failed to fetch chapter page: 403
+2025-02-20 15:57:08,067 - INFO - API服务器启动...
+2025-02-20 15:57:08,067 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:57:10,997 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:57:10,997 - INFO - Fetching chapter page: https://g-mh.org/manga/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:57:11,010 - ERROR - Error proxying chapter: Cannot set verify_mode to CERT_NONE when check_hostname is enabled.
+2025-02-20 15:58:05,140 - INFO - API服务器启动...
+2025-02-20 15:58:05,141 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:58:08,352 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:58:08,352 - INFO - Fetching chapter page: https://g-mh.org/manga/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:59:02,023 - INFO - API服务器启动...
+2025-02-20 15:59:02,023 - INFO - Running on http://0.0.0.0:7056 (CTRL + C to quit)
+2025-02-20 15:59:05,666 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:59:05,666 - INFO - Fetching chapter page: https://g-mh.org/manga/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:59:29,554 - INFO - Received proxy request for path: zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:59:29,554 - INFO - Fetching chapter page: https://g-mh.org/manga/zhainandalanqiu-hongyuanjian-2/24125-053785980-818
+2025-02-20 15:59:58,577 - INFO - 使用 cloudscraper 访问网站...
+2025-02-20 15:59:58,814 - INFO - 成功获取响应!
+2025-02-20 15:59:58,834 - INFO - 找到 30 个更新卡片
+2025-02-20 15:59:58,836 - INFO - 找到 12 个排行榜项目
+2025-02-20 15:59:58,836 - INFO - 找到 12 个最新上架
+2025-02-20 15:59:58,837 - INFO - 找到 12 个热门更新
