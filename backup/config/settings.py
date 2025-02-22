@@ -46,13 +46,8 @@ BROWSER_CONFIG = {
     ]
 }
 
-# 浏览器上下文配置
 BROWSER_CONTEXT_CONFIG = {
     'viewport': {'width': 1920, 'height': 1080},
-    'bypass_csp': True,  # 绕过内容安全策略
-    'ignore_https_errors': True,  # 忽略HTTPS错误
-    'java_script_enabled': True,
-    'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'locale': 'zh-CN',
     'timezone_id': 'Asia/Shanghai',
     'geolocation': {'latitude': 31.2304, 'longitude': 121.4737},
@@ -62,49 +57,55 @@ BROWSER_CONTEXT_CONFIG = {
     'has_touch': False,
     'is_mobile': False,
     'device_scale_factor': 1,
+    'ignore_https_errors': True,
+    'bypass_csp': True,
+    'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'extra_http_headers': {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-User': '?1',
+        'DNT': '1',
+        'Pragma': 'no-cache',
+        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"macOS"',
         'Sec-Fetch-Dest': 'document',
-        'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"macOS"'
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'X-Requested-With': 'XMLHttpRequest'
     }
 }
 
-# 默认请求头
+# 请求头配置
 DEFAULT_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
-    'Upgrade-Insecure-Requests': '1',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-User': '?1',
+    'DNT': '1',
+    'Pragma': 'no-cache',
+    'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"macOS"',
     'Sec-Fetch-Dest': 'document',
-    'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"macOS"'
-}
-
-# 日志配置
-LOG_CONFIG = {
-    'level': 'DEBUG',
-    'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    'filename': 'logs/app.log'
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+    'X-Requested-With': 'XMLHttpRequest'
 }
 
 # 代理配置
-PROXY_CONFIG = {
-    'enabled': False,
-    'http': None,
-    'https': None
+PROXY_CONFIG = None  # 移除代理配置
+
+# 日志配置
+LOG_CONFIG = {
+    'level': 'INFO',
+    'format': '%(asctime)s - %(levelname)s - %(message)s',
+    'filename': 'api_server.log'
 } 

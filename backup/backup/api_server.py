@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, Response
 from flask_cors import CORS
 import json
 import os
@@ -11,11 +11,11 @@ import random
 import re
 import cloudscraper
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, quote, urlparse, parse_qs
+from urllib.parse import urljoin, quote
 import html
 import asyncio
 from lxml import html as lxml_html
-from quart import Quart, jsonify as quart_jsonify, Response, current_app, make_response
+from quart import Quart, jsonify as quart_jsonify, Response, current_app, request, make_response
 from quart_cors import cors
 import aiofiles
 from lxml import etree
@@ -27,7 +27,10 @@ import ssl
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.ssl_ import create_urllib3_context
-from typing import Tuple, List
+from threading import Lock
+import urllib.parse
+from cachetools import TTLCache
+from typing import List, Dict, Any, Optional
 
 from config.settings import (
     DATA_DIR, LATEST_UPDATES_FILE, LATEST_MANGA_DETAILS_FILE,
@@ -58,30 +61,13 @@ app = cors(app)  # 启用CORS支持
 # 初始化工具类
 browser_manager = BrowserManager()
 response = ResponseFormatter()
-cache = CacheManager(ttl=3600)  # 1小时缓存
+cache = TTLCache(maxsize=100, ttl=1800)  # 30分钟缓存
 
 async def log_request(endpoint, method, ip):
     """记录请求信息"""
     logger.info(f"接收到请求: {endpoint}")
     logger.info(f"请求方法: {method}")
     logger.info(f"请求IP: {ip}")
-
-@app.before_request
-async def before_request():
-    """请求前处理器，确保在请求上下文中访问请求参数"""
-    try:
-        if request:
-            # 预先访问请求数据以确保它在请求上下文中被正确初始化
-            await request.get_data()
-            if hasattr(request, 'args'):
-                _ = request.args.to_dict()
-            if hasattr(request, 'form'):
-                _ = await request.form
-            if hasattr(request, 'values'):
-                _ = await request.values
-    except Exception as e:
-        logger.error(f"请求前处理出错: {str(e)}")
-        pass  # 继续处理请求
 
 @app.route('/api/manga/updates', methods=['GET', 'POST'])
 @handle_exceptions
@@ -429,14 +415,24 @@ async def get_page_content_with_playwright():
             await page.wait_for_load_state('networkidle')
             await page.wait_for_timeout(3000)
             
+            # 获取页面内容
             content = await page.content()
             
-            if '<html' not in content.lower():
-                logger.warning("获取的内容可能不是有效的HTML")
-                return None
-                
+            if not content:
+                logger.error("无法获取页面内容")
+                return quart_jsonify({
+                    "code": 500,
+                    "message": "无法获取页面内容",
+                    "data": None,
+                    "timestamp": int(time.time())
+                }), 500
+            
+            # 输出页面内容以进行调试
+            logger.info("页面内容:")
+            logger.info(content)
+            
             # 解析HTML
-            tree = etree.HTML(str(BeautifulSoup(content, 'html.parser')))
+            tree = etree.HTML(content)
             
             # 提取数据
             home_data = HomePageData(
@@ -520,317 +516,408 @@ async def proxy_image(image_path):
         app.logger.error(f"Error proxying chapter: {str(e)}")
         return {"error": "Failed to fetch chapter"}, 500
 
-@app.route('/search')
-async def search():
-    """
-    搜索漫画
-    :return: 搜索结果
-    """
-    try:
-        # 获取查询参数
-        keyword = request.args.get('keyword', '')
-        page = request.args.get('page', 1, type=int)
+class CloudflareSession:
+    _instance = None
+    _session = None
+    _last_verify_time = 0
+    _verify_interval = 300  # 5分钟验证一次
+    _lock = Lock()
+    _max_retries = 3
+    _retry_delay = 1  # 重试延迟（秒）
+    
+    @classmethod
+    def get_instance(cls):
+        if not cls._instance:
+            with cls._lock:
+                if not cls._instance:
+                    cls._instance = cls()
+        return cls._instance
+    
+    def __init__(self):
+        self._create_session()
         
-        if not keyword:
-            return await make_response(jsonify({
-                'code': 400,
-                'message': '搜索关键词不能为空',
-                'data': None,
-                'timestamp': int(datetime.now().timestamp())
-            }), 400)
-            
-        # 构建搜索URL
-        search_url = f'https://g-mh.org/s/{quote(keyword)}'
-        if page > 1:
-            search_url = f'{search_url}?page={page}'
-            
-        logger.info(f"搜索URL: {search_url}")
-            
-        # 首先尝试使用 cloudscraper
-        manga_list, pagination = await get_search_results_with_cloudscraper(search_url, page)
-        
-        # 如果 cloudscraper 失败，尝试使用 playwright
-        if not manga_list:
-            logger.info("Cloudscraper失败，尝试使用Playwright")
-            manga_list, pagination = await get_search_results_with_playwright(search_url, page)
-            
-        if not manga_list:
-            logger.warning("未找到搜索结果")
-            return await make_response(jsonify({
-                'code': 200,
-                'message': '未找到搜索结果',
-                'data': {
-                    'manga_list': [],
-                    'pagination': {'current_page': page, 'page_links': []}
-                },
-                'timestamp': int(datetime.now().timestamp())
-            }))
-            
-        logger.info("搜索成功完成")
-        return await make_response(jsonify({
-            'code': 200,
-            'message': 'success',
-            'data': {
-                'manga_list': manga_list,
-                'pagination': pagination
-            },
-            'timestamp': int(datetime.now().timestamp())
-        }))
-        
-    except Exception as e:
-        logger.error(f"搜索时出错: {str(e)}")
-        return await make_response(jsonify({
-            'code': 500,
-            'message': str(e),
-            'data': None,
-            'timestamp': int(datetime.now().timestamp())
-        }), 500)
-
-async def get_search_results_with_playwright(search_url: str, page: int = 1) -> Tuple[List[dict], dict]:
-    try:
-        browser_page = await browser_manager.get_page()
+    def _create_session(self):
         try:
-            logger.info("使用 Playwright 访问搜索页面...")
-            await browser_page.goto(search_url, timeout=30000)
-            await browser_page.wait_for_load_state('networkidle')
-            await browser_page.wait_for_timeout(3000)
-            
-            content = await browser_page.content()
-            if not content:
-                logger.error("无法获取页面内容")
-                return [], {'current_page': page, 'page_links': []}
-                
-            tree = etree.HTML(content)
-            
-            # 提取漫画列表
-            manga_list = []
-            manga_items = tree.xpath('//div[contains(@class, "cardlist")]/div[contains(@class, "pb-2")]')
-            logger.info(f"找到 {len(manga_items)} 个漫画")
-            
-            for item in manga_items:
-                try:
-                    manga_info = {}
-                    
-                    # 提取标题和链接
-                    link_elem = item.xpath('.//a/@href')
-                    title_elem = item.xpath('.//h3[contains(@class, "cardtitle")]/text()')
-                    
-                    if link_elem and title_elem:
-                        manga_info['title'] = title_elem[0].strip()
-                        manga_info['link'] = link_elem[0]
-                        if manga_info['link'] and not manga_info['link'].startswith('http'):
-                            manga_info['link'] = urljoin(search_url, manga_info['link'])
-                            
-                    # 提取封面图片
-                    img_elem = item.xpath('.//img/@src')
-                    if img_elem:
-                        manga_info['cover'] = img_elem[0]
-                        if not manga_info['cover'].startswith('http'):
-                            manga_info['cover'] = urljoin(search_url, manga_info['cover'])
-                            
-                    if manga_info.get('title') and manga_info.get('link'):
-                        manga_list.append(manga_info)
-                        
-                except Exception as e:
-                    logger.error(f"处理漫画信息时出错: {str(e)}")
-                    continue
-                    
-            # 提取分页信息
-            pagination = {'current_page': page, 'page_links': []}
-            page_links = tree.xpath('//div[contains(@class, "flex justify-between items-center")]//a')
-            
-            if page_links:
-                pagination['page_links'] = []
-                for link in page_links:
-                    href = link.get('href')
-                    text = ''.join(link.xpath('.//text()')).strip()
-                    if href and text:
-                        if not href.startswith('http'):
-                            href = urljoin(search_url, href)
-                        pagination['page_links'].append({
-                            'text': text,
-                            'link': href
-                        })
-                        
-            logger.info(f"找到 {len(manga_list)} 个漫画结果")
-            logger.info(f"分页信息: {pagination}")
-            return manga_list, pagination
-            
-        finally:
-            await browser_manager.close()
-            
-    except Exception as e:
-        logger.error(f"使用 Playwright 搜索时出错: {str(e)}")
-        return [], {'current_page': page, 'page_links': []}
-
-async def get_search_results_with_cloudscraper(search_url: str, page: int = 1) -> Tuple[List[dict], dict]:
-    try:
-        scraper = cloudscraper.create_scraper(
-            browser={
-                'browser': 'chrome',
-                'platform': 'darwin',
-                'desktop': True,
-                'custom': 'Chrome/131.0.0.0'
-            },
-            debug=True
-        )
-        
-        logger.info("使用 Cloudscraper 访问搜索页面...")
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None, 
-            lambda: scraper.get(
-                search_url,
-                allow_redirects=True,
-                timeout=30
+            self._session = cloudscraper.create_scraper(
+                browser={
+                    'browser': 'chrome',
+                    'platform': 'darwin',
+                    'mobile': False
+                },
+                delay=10,  # 添加延迟
+                interpreter='nodejs'  # 使用nodejs解释器
             )
-        )
-        
-        if response.status_code == 200:
-            if '<html' not in response.text.lower():
-                logger.warning("响应内容可能不是有效的HTML")
-                logger.warning(f"响应内容前200个字符: {response.text[:200]}")
-                return [], {'current_page': page, 'page_links': []}
-                
-            tree = etree.HTML(str(BeautifulSoup(response.content, 'html.parser')))
             
-            # 提取漫画列表
-            manga_list = []
-            manga_items = tree.xpath('//div[contains(@class, "cardlist")]/div[contains(@class, "pb-2")]')
-            logger.info(f"找到 {len(manga_items)} 个漫画")
+            # 设置请求头
+            self._session.headers.update({
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"macOS"',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Upgrade-Insecure-Requests': '1'
+            })
             
-            for item in manga_items:
+            self._last_verify_time = time.time()
+            logger.info("成功创建Cloudflare会话")
+        except Exception as e:
+            logger.error(f"创建Cloudflare会话失败: {str(e)}")
+            raise
+            
+    def _verify_session(self):
+        current_time = time.time()
+        if current_time - self._last_verify_time > self._verify_interval:
+            for attempt in range(self._max_retries):
                 try:
-                    manga_info = {}
-                    
-                    # 提取标题和链接
-                    link_elem = item.xpath('.//a/@href')
-                    title_elem = item.xpath('.//h3[contains(@class, "cardtitle")]/text()')
-                    
-                    if link_elem and title_elem:
-                        manga_info['title'] = title_elem[0].strip()
-                        manga_info['link'] = link_elem[0]
-                        if manga_info['link'] and not manga_info['link'].startswith('http'):
-                            manga_info['link'] = urljoin(search_url, manga_info['link'])
-                            
-                    # 提取封面图片
-                    img_elem = item.xpath('.//img/@src')
-                    if img_elem:
-                        manga_info['cover'] = img_elem[0]
-                        if not manga_info['cover'].startswith('http'):
-                            manga_info['cover'] = urljoin(search_url, manga_info['cover'])
-                            
-                    if manga_info.get('title') and manga_info.get('link'):
-                        manga_list.append(manga_info)
-                        
+                    response = self._session.get('https://g-mh.org/', timeout=30)
+                    if response.status_code == 200:
+                        self._last_verify_time = current_time
+                        logger.info("Cloudflare会话验证成功")
+                        return
+                    else:
+                        logger.warning(f"Cloudflare会话验证失败，状态码: {response.status_code}")
+                        if attempt < self._max_retries - 1:
+                            time.sleep(self._retry_delay)
+                            self._create_session()
+                        else:
+                            raise Exception(f"会话验证失败，已重试 {self._max_retries} 次")
                 except Exception as e:
-                    logger.error(f"处理漫画信息时出错: {str(e)}")
-                    continue
-                    
-            # 提取分页信息
-            pagination = {'current_page': page, 'page_links': []}
-            page_links = tree.xpath('//div[contains(@class, "flex justify-between items-center")]//a')
-            
-            if page_links:
-                pagination['page_links'] = []
-                for link in page_links:
-                    href = link.get('href')
-                    text = ''.join(link.xpath('.//text()')).strip()
-                    if href and text:
-                        if not href.startswith('http'):
-                            href = urljoin(search_url, href)
-                        pagination['page_links'].append({
-                            'text': text,
-                            'link': href
-                        })
-                        
-            logger.info(f"找到 {len(manga_list)} 个漫画结果")
-            logger.info(f"分页信息: {pagination}")
-            return manga_list, pagination
-            
-        else:
-            logger.warning(f"搜索请求失败，状态码: {response.status_code}")
-            logger.warning(f"响应内容: {response.text[:200]}")
-            return [], {'current_page': page, 'page_links': []}
-            
-    except Exception as e:
-        logger.error(f"使用 Cloudscraper 搜索时出错: {str(e)}")
-        return [], {'current_page': page, 'page_links': []}
+                    logger.error(f"Cloudflare会话验证出错 (尝试 {attempt + 1}/{self._max_retries}): {str(e)}")
+                    if attempt < self._max_retries - 1:
+                        time.sleep(self._retry_delay)
+                        self._create_session()
+                    else:
+                        raise
+                
+    def get_session(self):
+        self._verify_session()
+        return self._session
 
-@app.route('/api/manga/url', methods=['GET', 'POST'])
-@handle_exceptions
-async def get_manga_by_url():
-    """
-    通过指定URL获取漫画列表
-    """
+    def get(self, url, **kwargs):
+        """发送GET请求"""
+        for attempt in range(self._max_retries):
+            try:
+                self._verify_session()
+                response = self._session.get(url, timeout=30, **kwargs)
+                if response.status_code == 403:
+                    logger.warning("收到403响应，重新创建会话")
+                    self._create_session()
+                    if attempt < self._max_retries - 1:
+                        time.sleep(self._retry_delay)
+                        continue
+                return response
+            except Exception as e:
+                logger.error(f"请求失败 (尝试 {attempt + 1}/{self._max_retries}): {str(e)}")
+                if attempt < self._max_retries - 1:
+                    time.sleep(self._retry_delay)
+                    self._create_session()
+                else:
+                    raise
+
+cloudflare_session = CloudflareSession.get_instance()
+
+@app.route('/api/manga/search/<path:keyword>', methods=['GET', 'POST'])
+async def search_manga(keyword):
     try:
-        # 获取URL参数
-        url = request.args.get('url', '')
-        if not url:
-            return await quart_jsonify({
-                'code': 400,
-                'message': 'URL参数不能为空',
-                'data': None,
-                'timestamp': int(datetime.now().timestamp())
-            }), 400
+        logger.info(f"接收到搜索请求: {keyword}")
+        
+        # 参数验证
+        if not keyword or len(keyword.strip()) == 0:
+            raise BadRequestError("搜索关键词不能为空")
             
-        logger.info(f"接收到请求: /api/manga/url, URL: {url}")
+        # 缓存键
+        cache_key = f"search_{keyword}"
         
         # 尝试从缓存获取
-        cache_key = f'manga_url_{url}'
         cached_data = cache.get(cache_key)
         if cached_data:
-            return await quart_jsonify({
-                'code': 200,
-                'message': 'success',
-                'data': cached_data,
-                'timestamp': int(datetime.now().timestamp())
-            })
-        
-        # 首先尝试使用 cloudscraper
-        manga_list, pagination = await get_search_results_with_cloudscraper(url, 1)
-        
-        # 如果 cloudscraper 失败，尝试使用 playwright
-        if not manga_list:
-            logger.info("Cloudscraper失败，尝试使用Playwright")
-            manga_list, pagination = await get_search_results_with_playwright(url, 1)
+            return quart_jsonify(cached_data)
+
+        # 获取浏览器页面
+        browser_page = await browser_manager.get_page()
+        search_results = []
+        current_url = None
+
+        try:
+            # 构建搜索URL
+            search_url = f"https://g-mh.org/s/{quote(keyword)}"
+            logger.info(f"访问搜索URL: {search_url}")
+
+            # 访问搜索页面
+            response = await browser_page.goto(search_url, wait_until='networkidle', timeout=30000)
+            logger.info(f"页面响应状态: {response.status}")
             
-        if not manga_list:
-            logger.warning("未找到漫画列表")
-            return await quart_jsonify({
-                'code': 200,
-                'message': '未找到漫画列表',
-                'data': {
-                    'manga_list': [],
-                    'pagination': {'current_page': 1, 'page_links': []}
-                },
-                'timestamp': int(datetime.now().timestamp())
-            })
+            # 等待页面加载
+            await browser_page.wait_for_timeout(5000)  # 等待5秒确保页面加载完成
             
-        result_data = {
-            'manga_list': manga_list,
-            'pagination': pagination
+            # 获取当前URL
+            current_url = browser_page.url
+            logger.info(f"当前页面URL: {current_url}")
+
+            # 获取页面标题
+            title = await browser_page.title()
+            logger.info(f"页面标题: {title}")
+
+            # 获取页面内容
+            content = await browser_page.content()
+            logger.info(f"页面内容: {content}")
+
+            # 等待页面元素出现
+            try:
+                await browser_page.wait_for_selector('.comics-card', timeout=5000)
+                logger.info("找到漫画元素")
+            except Exception as e:
+                logger.warning(f"等待漫画元素超时: {str(e)}")
+                # 尝试其他选择器
+                try:
+                    await browser_page.wait_for_selector('.book-list', timeout=5000)
+                    logger.info("找到漫画列表元素")
+                except Exception as e:
+                    logger.warning(f"等待漫画列表元素超时: {str(e)}")
+
+            # 提取漫画信息
+            items = await browser_page.query_selector_all('.book-list .book-item')
+            logger.info(f"找到 {len(items)} 个漫画")
+
+            for item in items:
+                try:
+                    manga_info = {}
+                    
+                    # 提取标题和链接
+                    title_elem = await item.query_selector('.book-title')
+                    if title_elem:
+                        manga_info['title'] = (await title_elem.text_content()).strip()
+                        link_elem = await title_elem.query_selector('a')
+                        if link_elem:
+                            manga_info['link'] = await link_elem.get_attribute('href')
+                            if manga_info['link'] and not manga_info['link'].startswith('http'):
+                                manga_info['link'] = urljoin(current_url, manga_info['link'])
+
+                    # 提取封面图片
+                    img_elem = await item.query_selector('.book-cover img')
+                    if img_elem:
+                        for attr in ['src', 'data-src', 'data-original']:
+                            cover = await img_elem.get_attribute(attr)
+                            if cover:
+                                if not cover.startswith('http'):
+                                    cover = urljoin(current_url, cover)
+                                manga_info['cover'] = cover
+                                break
+
+                    # 提取最新章节
+                    latest_chapter = await item.query_selector('.book-info a')
+                    if latest_chapter:
+                        manga_info['latest_chapter'] = (await latest_chapter.text_content()).strip()
+                        manga_info['latest_chapter_link'] = await latest_chapter.get_attribute('href')
+                        if manga_info['latest_chapter_link'] and not manga_info['latest_chapter_link'].startswith('http'):
+                            manga_info['latest_chapter_link'] = urljoin(current_url, manga_info['latest_chapter_link'])
+
+                    # 只添加有效的结果
+                    if manga_info.get('title') and manga_info.get('link'):
+                        search_results.append(manga_info)
+                        logger.info(f"找到漫画: {manga_info}")
+
+                except Exception as e:
+                    logger.error(f"处理漫画元素时出错: {str(e)}")
+                    continue
+
+            # 准备返回结果
+            result = {
+                "code": 200,
+                "message": "success" if search_results else "未找到搜索结果",
+                "data": {
+                    "list": search_results,
+                    "meta": {
+                        "keyword": keyword,
+                        "source_url": current_url,
+                        "timestamp": int(time.time())
+                    }
+                }
+            }
+
+            # 只缓存有结果的搜索
+            if search_results:
+                cache.set(cache_key, result, ttl=1800)  # 30分钟缓存
+
+            return quart_jsonify(result)
+
+        finally:
+            await browser_manager.close()
+
+    except BadRequestError as e:
+        error_result = {
+            "code": 400,
+            "message": str(e),
+            "data": None,
+            "meta": {
+                "keyword": keyword if 'keyword' in locals() else None,
+                "timestamp": int(time.time())
+            }
         }
+        return quart_jsonify(error_result), 400
+
+    except Exception as e:
+        logger.error(f"搜索漫画时出错: {str(e)}")
+        error_result = {
+            "code": 500,
+            "message": "服务器内部错误",
+            "data": None,
+            "meta": {
+                "error": str(e),
+                "keyword": keyword if 'keyword' in locals() else None,
+                "timestamp": int(time.time())
+            }
+        }
+        return quart_jsonify(error_result), 500
+
+@app.route('/api/search', methods=['GET', 'POST'])
+async def search():
+    try:
+        # 从查询参数中获取值
+        keyword = request.args.get('keyword')
+        page = request.args.get('page', 1, type=int)
+        size = request.args.get('size', 10, type=int)
         
-        # 缓存结果
-        cache.set(cache_key, result_data, ttl=1800)  # 30分钟缓存
+        if not keyword:
+            response = await make_response(quart_jsonify({
+                "code": 400,
+                "message": "关键词不能为空",
+                "data": []
+            }))
+            response.status_code = 400
+            return response
+            
+        logger.info(f"收到搜索请求: keyword={keyword}, page={page}, size={size}")
         
-        logger.info("成功获取漫画列表")
-        return await quart_jsonify({
-            'code': 200,
-            'message': 'success',
-            'data': result_data,
-            'timestamp': int(datetime.now().timestamp())
-        })
+        # 对关键词进行URL编码
+        encoded_keyword = urllib.parse.quote(keyword)
+        logger.info(f"编码后的关键词: {encoded_keyword}")
+        
+        results = await search_manga(encoded_keyword, page, size)
+        logger.info(f"搜索完成，返回结果数量: {len(results)}")
+        
+        response = await make_response(quart_jsonify({
+            "code": 200,
+            "message": "success" if results else "未找到匹配的结果",
+            "data": results,
+            "meta": {
+                "keyword": keyword,
+                "page": page,
+                "size": size,
+                "total": len(results)
+            }
+        }))
+        response.headers['Content-Type'] = 'application/json'
+        return response
         
     except Exception as e:
-        logger.error(f"获取漫画列表时出错: {str(e)}")
-        return await quart_jsonify({
-            'code': 500,
-            'message': str(e),
-            'data': None,
-            'timestamp': int(datetime.now().timestamp())
-        }), 500
+        logger.error(f"搜索失败: {str(e)}", exc_info=True)
+        response = await make_response(quart_jsonify({
+            "code": 500,
+            "message": f"搜索失败: {str(e)}",
+            "data": []
+        }))
+        response.status_code = 500
+        return response
+
+async def search_manga(keyword: str, page: int = 1, size: int = 10) -> List[dict]:
+    try:
+        logger.info(f"开始搜索漫画: keyword={keyword}, page={page}, size={size}")
+        async with browser_manager as manager:
+            browser_page = await manager.get_page()
+            logger.info("成功创建浏览器页面")
+
+            # 构建搜索URL
+            search_url = f"https://g-mh.org/search?keyword={keyword}&page={page}"
+            logger.info(f"访问搜索页面: {search_url}")
+            
+            # 访问页面
+            await browser_page.goto(search_url, wait_until='networkidle', timeout=60000)
+            logger.info("页面加载完成")
+            
+            # 等待页面加载
+            await browser_page.wait_for_timeout(5000)
+            
+            # 获取页面标题和内容用于调试
+            title = await browser_page.title()
+            logger.info(f"页面标题: {title}")
+            
+            content = await browser_page.content()
+            logger.info(f"页面内容长度: {len(content)}")
+            
+            # 等待漫画列表元素出现
+            logger.info("等待漫画列表元素出现")
+            try:
+                await browser_page.wait_for_selector('.book-list', timeout=10000)
+                logger.info("找到漫画列表容器")
+                
+                await browser_page.wait_for_selector('.book-list .book-item', timeout=10000)
+                logger.info("找到漫画列表项")
+            except Exception as e:
+                logger.warning(f"等待选择器超时: {str(e)}")
+                return []
+
+            # 获取所有漫画项
+            manga_items = await browser_page.query_selector_all('.book-list .book-item')
+            logger.info(f"找到 {len(manga_items)} 个漫画项")
+
+            results = []
+            for item in manga_items[:size]:
+                try:
+                    # 提取标题
+                    title_element = await item.query_selector('.book-title')
+                    title = await title_element.text_content() if title_element else "未知标题"
+                    logger.info(f"提取到标题: {title}")
+                    
+                    # 提取链接
+                    link_element = await item.query_selector('a')
+                    link = await link_element.get_attribute('href') if link_element else None
+                    if link:
+                        link = f"https://g-mh.org{link}" if not link.startswith('http') else link
+                    logger.info(f"提取到链接: {link}")
+                    
+                    # 提取封面图
+                    img_element = await item.query_selector('.book-cover img')
+                    cover = None
+                    if img_element:
+                        for attr in ['src', 'data-src', 'data-original']:
+                            cover = await img_element.get_attribute(attr)
+                            if cover:
+                                if not cover.startswith('http'):
+                                    cover = f"https://g-mh.org{cover}"
+                                break
+                    logger.info(f"提取到封面: {cover}")
+                    
+                    # 提取最新章节
+                    latest_chapter_element = await item.query_selector('.book-info a')
+                    latest_chapter = await latest_chapter_element.text_content() if latest_chapter_element else "暂无章节"
+                    logger.info(f"提取到最新章节: {latest_chapter}")
+                    
+                    manga = {
+                        "title": title.strip(),
+                        "link": link,
+                        "cover": cover,
+                        "latest_chapter": latest_chapter.strip()
+                    }
+                    results.append(manga)
+                    logger.info(f"成功提取漫画信息: {manga['title']}")
+                except Exception as e:
+                    logger.error(f"提取漫画信息时出错: {str(e)}")
+                    continue
+
+            logger.info(f"搜索完成，返回 {len(results)} 个结果")
+            return results
+            
+    except Exception as e:
+        logger.error(f"搜索过程中出错: {str(e)}", exc_info=True)
+        return []
 
 if __name__ == '__main__':
     try:
@@ -842,38 +929,22 @@ if __name__ == '__main__':
         if result == 0:
             logger.error(f"端口 {API_PORT} 已被占用")
             sys.exit(1)
-        
-        # 写入PID文件
-        pid = os.getpid()
-        with open('api_server.pid', 'w') as f:
-            f.write(str(pid))
-        logger.info(f"服务器PID: {pid}")
             
         # 确保数据目录存在
         os.makedirs(DATA_DIR, exist_ok=True)
         
         # 启动服务器
         logger.info("API服务器启动...")
-        config = Config()
-        config.bind = [f"{API_HOST}:{API_PORT}"]
-        config.use_reloader = True
-        
-        try:
-            asyncio.run(hypercorn.asyncio.serve(app, config))
-        finally:
-            # 删除PID文件
-            if os.path.exists('api_server.pid'):
-                os.remove('api_server.pid')
+        app.run(
+            host=API_HOST,
+            port=API_PORT,
+            debug=True,
+            use_reloader=True
+        )
         
     except KeyboardInterrupt:
         logger.info("服务器正在关闭...")
-        # 删除PID文件
-        if os.path.exists('api_server.pid'):
-            os.remove('api_server.pid')
         sys.exit(0)
     except Exception as e:
         logger.error(f"服务器启动失败: {str(e)}")
-        # 删除PID文件
-        if os.path.exists('api_server.pid'):
-            os.remove('api_server.pid')
         sys.exit(1) 

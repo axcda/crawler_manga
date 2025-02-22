@@ -1,0 +1,11 @@
+requests>=2.31.0
+cloudscraper>=1.2.71
+playwright>=1.42.0
+chardet>=5.2.0
+beautifulsoup4==4.12.3
+schedule>=1.2.1
+flask>=3.0.2
+flask-cors>=4.0.0
+lxml>=5.1.0
+flask[async]
+python-dotenv 
