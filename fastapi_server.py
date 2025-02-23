@@ -24,9 +24,12 @@ from threading import Lock
 from lxml import html
 from utils.turnstile_solver import TurnstileSolver
 from utils.content_extractor import ContentExtractor
+from utils.db_manager import DBManager
+from models.manga import MangaInfo, Chapter, Image, Author, Genre, Type, ChapterInfo
 
 from config.settings import (
-    DATA_DIR, API_HOST, API_PORT, LOG_CONFIG
+    DATA_DIR, API_HOST, API_PORT, LOG_CONFIG,
+    MONGO_COLLECTION_MANGA, MONGO_COLLECTION_CHAPTERS, MONGO_COLLECTION_IMAGES
 )
 from utils.browser_manager import BrowserManager
 from utils.cache_manager import CacheManager
@@ -57,6 +60,9 @@ DEFAULT_HEADERS = {
     'Upgrade-Insecure-Requests': '1'
 }
 
+# 初始化数据库管理器
+db_manager = DBManager()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动时的操作
@@ -64,11 +70,16 @@ async def lifespan(app: FastAPI):
     scheduler = await aiojobs.create_scheduler(limit=100)
     await scheduler.spawn(process_request_queue())
     
+    # 连接数据库
+    await db_manager.connect()
+    
     yield
     
     # 关闭时的操作
     if scheduler:
         await scheduler.close()
+    # 关闭数据库连接
+    await db_manager.close()
 
 app = FastAPI(
     title="漫画API",
@@ -1203,7 +1214,7 @@ class LazyJSONResponse:
 
 @app.get("/api/manga/content/{manga_path:path}")
 async def get_chapter_content(manga_path: str, request: Request):
-    """获取漫画章节内容（修复版）"""
+    """获取漫画章节内容"""
     try:
         logger.info(f"请求章节: {manga_path}")
         
@@ -1223,7 +1234,6 @@ async def get_chapter_content(manga_path: str, request: Request):
             }
             
         # 首先尝试使用 cloudscraper
-        logger.info("尝试使用 Cloudscraper 获取章节内容...")
         image_urls, prev_chapter, next_chapter = await get_chapter_content_with_cloudscraper(chapter_url)
         
         # 如果 cloudscraper 失败，尝试使用 playwright
@@ -1239,6 +1249,33 @@ async def get_chapter_content(manga_path: str, request: Request):
                 'data': None,
                 'timestamp': int(datetime.now().timestamp())
             }
+            
+        # 保存图片信息到MongoDB
+        try:
+            # 从manga_path中提取manga_id和chapter_id
+            path_parts = manga_path.split('/')
+            if len(path_parts) >= 2:
+                manga_id = path_parts[0]
+                chapter_id = path_parts[1]
+                
+                # 创建图片对象列表
+                images = []
+                for idx, url in enumerate(image_urls):
+                    image = Image(
+                        manga_id=manga_id,
+                        chapter_id=chapter_id,
+                        url=url,
+                        order=idx
+                    )
+                    images.append(image)
+                    
+                # 批量保存图片信息
+                await db_manager.save_images(images)
+                logger.info(f"成功保存 {len(images)} 张图片信息到数据库")
+                
+        except Exception as e:
+            logger.error(f"保存图片信息到MongoDB时出错: {str(e)}")
+            # 继续处理,不影响API响应
             
         # 构建返回数据
         result_data = {
@@ -1996,69 +2033,57 @@ async def get_manga_info_with_playwright(manga_url: str) -> Tuple[dict, List[dic
         logger.error(f"Playwright操作出错: {str(e)}")
         return None, []
 
-@app.get("/api/manga/chapter/{manga_path:path}")
+@app.get("/api/manga/chapter/{manga_path}")
 async def get_manga_chapters(manga_path: str):
-    """获取漫画详情和章节列表"""
     try:
-        logger.info(f"接收到漫画章节列表请求: {manga_path}")
+        # 获取章节列表
+        chapters = await get_manga_info_with_cloudscraper(f"https://g-mh.org/manga/{manga_path}")
         
-        # 构建漫画页面URL
-        manga_url = f"https://g-mh.org/manga/{manga_path}"
-        logger.info(f"获取漫画页面: {manga_url}")
+        if not chapters[0] and not chapters[1]:
+            chapters = await get_manga_info_with_playwright(f"https://g-mh.org/manga/{manga_path}")
         
-        # 尝试从缓存获取
-        cache_key = f'chapters_{manga_path}'
-        cached_data = cache.get(cache_key)
-        if cached_data:
-            logger.info("从缓存返回数据")
-            return {
-                'code': 200,
-                'message': 'success',
-                'data': cached_data,
-                'timestamp': int(datetime.now().timestamp())
-            }
-            
-        # 首先尝试使用 cloudscraper
-        manga_info, chapters = await get_manga_info_with_cloudscraper(manga_url)
+        manga_info, chapter_list = chapters
         
-        # 如果 cloudscraper 失败，尝试使用 playwright
-        if not manga_info and not chapters:
-            logger.info("Cloudscraper失败，尝试使用Playwright")
-            manga_info, chapters = await get_manga_info_with_playwright(manga_url)
+        if not manga_info and not chapter_list:
+            return {"code": 404, "message": "未找到漫画信息", "data": None}
             
-        if not manga_info and not chapters:
-            logger.warning("未找到漫画信息和章节列表")
-            return {
-                'code': 404,
-                'message': '未找到漫画信息和章节列表',
-                'data': None,
-                'timestamp': int(datetime.now().timestamp())
-            }
-            
-        result_data = {
-            'manga_info': manga_info,
-            'chapters': chapters
+        # 创建 manga_info 对象
+        manga = MangaInfo(
+            manga_id=manga_path,
+            title=manga_info.get("title", "").replace("連載中", "").strip(),
+            description=manga_info.get("description", ""),
+            status=manga_info.get("status", "連載中"),
+            author=Author(**manga_info.get("author", {"names": [], "links": []})),
+            type=Genre(**manga_info.get("type", {"names": [], "links": []})),
+            cover=manga_info.get("cover", "")
+        )
+        
+        # 保存 manga 信息
+        await db_manager.save_manga(manga, manga_path)
+        
+        # 删除旧的章节数据
+        await db_manager.db[MONGO_COLLECTION_CHAPTERS].delete_many({"manga_id": manga_path})
+        
+        # 保存新的章节数据
+        for i, chapter in enumerate(chapter_list, 1):
+            chapter_data = ChapterInfo(
+                manga_id=manga_path,
+                chapter_id=f"{manga_path}_chapter_{i}",
+                title=chapter.get("title", ""),
+                link=chapter.get("link", "").replace("/manga/", ""),
+                order=i
+            )
+            await db_manager.save_chapter(chapter_data)
+        
+        result = {
+            "manga_info": manga.dict(),
+            "chapters": chapter_list
         }
         
-        # 缓存结果
-        cache.set(cache_key, result_data)
-        
-        logger.info(f"成功获取漫画信息和 {len(chapters)} 个章节")
-        return {
-            'code': 200,
-            'message': 'success',
-            'data': result_data,
-            'timestamp': int(datetime.now().timestamp())
-        }
-        
+        return {"code": 200, "message": "success", "data": result}
     except Exception as e:
-        logger.error(f"获取漫画章节列表时出错: {str(e)}")
-        return {
-            'code': 500,
-            'message': str(e),
-            'data': None,
-            'timestamp': int(datetime.now().timestamp())
-        }
+        logger.error(f"Error in get_manga_chapters: {str(e)}")
+        return {"code": 500, "message": str(e)}
 
 @app.get("/api/stats")
 async def get_server_stats():
@@ -2342,6 +2367,180 @@ async def get_chapter_content_with_playwright(chapter_url: str) -> Tuple[List[st
         import traceback
         logger.error(f"错误堆栈:\n{traceback.format_exc()}")
         return [], None, None
+
+# 添加新的API端点用于从MongoDB获取数据
+@app.get("/api/db/manga/{manga_id}")
+async def get_manga_from_db(manga_id: str):
+    """从数据库获取漫画信息"""
+    try:
+        manga = await db_manager.get_manga(manga_id)
+        if not manga:
+            return {
+                'code': 404,
+                'message': '未找到漫画',
+                'data': None,
+                'timestamp': int(datetime.now().timestamp())
+            }
+            
+        chapters = await db_manager.get_chapters(manga_id)
+        
+        return {
+            'code': 200,
+            'message': 'success',
+            'data': {
+                'manga_info': manga,
+                'chapters': chapters
+            },
+            'timestamp': int(datetime.now().timestamp())
+        }
+        
+    except Exception as e:
+        logger.error(f"从数据库获取漫画信息时出错: {str(e)}")
+        return {
+            'code': 500,
+            'message': str(e),
+            'data': None,
+            'timestamp': int(datetime.now().timestamp())
+        }
+
+@app.get("/api/db/chapter/{chapter_id}/images")
+async def get_chapter_images_from_db(chapter_id: str):
+    """从数据库获取章节图片"""
+    try:
+        images = await db_manager.get_chapter_images(chapter_id)
+        if not images:
+            return {
+                'code': 404,
+                'message': '未找到章节图片',
+                'data': None,
+                'timestamp': int(datetime.now().timestamp())
+            }
+            
+        return {
+            'code': 200,
+            'message': 'success',
+            'data': {
+                'images': images
+            },
+            'timestamp': int(datetime.now().timestamp())
+        }
+        
+    except Exception as e:
+        logger.error(f"从数据库获取章节图片时出错: {str(e)}")
+        return {
+            'code': 500,
+            'message': str(e),
+            'data': None,
+            'timestamp': int(datetime.now().timestamp())
+        }
+
+@app.get("/api/db/search")
+async def search_manga_in_db(
+    keyword: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100)
+):
+    """在数据库中搜索漫画"""
+    try:
+        skip = (page - 1) * limit
+        manga_list = await db_manager.search_manga(keyword, skip, limit)
+        
+        return {
+            'code': 200,
+            'message': 'success',
+            'data': {
+                'manga_list': manga_list,
+                'page': page,
+                'limit': limit
+            },
+            'timestamp': int(datetime.now().timestamp())
+        }
+        
+    except Exception as e:
+        logger.error(f"搜索漫画时出错: {str(e)}")
+        return {
+            'code': 500,
+            'message': str(e),
+            'data': None,
+            'timestamp': int(datetime.now().timestamp())
+        }
+
+@app.get("/api/db/manga/{manga_path}")
+async def get_manga_from_db(manga_path: str):
+    """从数据库获取漫画信息"""
+    try:
+        # 首先尝试通过 manga_id 查找
+        manga = await db_manager.get_manga(manga_path)
+        if not manga:
+            # 如果找不到，尝试通过路径名查找
+            manga = await db_manager.get_manga_by_path(manga_path)
+            if not manga:
+                return {
+                    'code': 404,
+                    'message': '未找到漫画',
+                    'data': None,
+                    'timestamp': int(datetime.now().timestamp())
+                }
+            
+        chapters = await db_manager.get_chapters(manga.manga_id)
+        
+        return {
+            'code': 200,
+            'message': 'success',
+            'data': {
+                'manga_info': manga.dict(),
+                'chapters': [chapter.dict() for chapter in chapters]
+            },
+            'timestamp': int(datetime.now().timestamp())
+        }
+        
+    except Exception as e:
+        logger.error(f"从数据库获取漫画信息时出错: {str(e)}")
+        return {
+            'code': 500,
+            'message': str(e),
+            'data': None,
+            'timestamp': int(datetime.now().timestamp())
+        }
+
+@app.get("/api/manga/images/{manga_id}/{chapter_id}")
+async def get_manga_images(manga_id: str, chapter_id: str):
+    """获取漫画章节图片"""
+    try:
+        logger.info(f"获取章节图片: {manga_id}/{chapter_id}")
+        
+        # 从数据库获取图片信息
+        images = await db_manager.get_chapter_images(f"{manga_id}_{chapter_id}")
+        
+        if not images:
+            logger.warning("未找到图片信息")
+            return {
+                'code': 404,
+                'message': '未找到图片信息',
+                'data': None
+            }
+            
+        # 按照顺序排序图片
+        sorted_images = sorted(images, key=lambda x: x.order)
+        
+        # 构建返回数据
+        result = {
+            'images': [image.url for image in sorted_images]
+        }
+        
+        return {
+            'code': 200,
+            'message': 'success',
+            'data': result
+        }
+            
+    except Exception as e:
+        logger.error(f"获取章节图片时出错: {str(e)}")
+        return {
+            'code': 500,
+            'message': str(e),
+            'data': None
+        }
 
 if __name__ == "__main__":
     # 确保数据目录存在

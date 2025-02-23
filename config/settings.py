@@ -107,4 +107,13 @@ PROXY_CONFIG = {
     'enabled': False,
     'http': None,
     'https': None
-} 
+}
+
+# MongoDB配置
+MONGO_HOST = "localhost"
+MONGO_PORT = 27017
+MONGO_DB = "manga_db"
+MONGO_COLLECTION_MANGA = "manga"
+MONGO_COLLECTION_CHAPTERS = "chapters"
+MONGO_COLLECTION_IMAGES = "images"
+MONGO_URI = f"mongodb://{MONGO_HOST}:{MONGO_PORT}" 

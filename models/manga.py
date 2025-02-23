@@ -1,39 +1,53 @@
-from dataclasses import dataclass
 from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel, Field
 
-@dataclass
-class MangaInfo:
-    """漫画基本信息"""
-    title: str
-    link: str
-    image_url: str
-    time: Optional[str] = None
-    chapter: Optional[str] = None
-    rank: Optional[int] = None
+class Author(BaseModel):
+    names: List[str] = Field(default_factory=list)
+    links: List[str] = Field(default_factory=list)
 
-@dataclass
-class ChapterInfo:
-    """章节信息"""
-    manga_title: str
-    chapter_title: str
-    image_urls: List[str]
-    prev_chapter: Optional[str] = None
-    next_chapter: Optional[str] = None
+class Genre(BaseModel):
+    names: List[str] = Field(default_factory=list)
+    links: List[str] = Field(default_factory=list)
 
-@dataclass
-class HomePageData:
-    """首页数据"""
-    updates: List[MangaInfo]
-    popular_manga: List[MangaInfo]
-    new_manga: List[MangaInfo]
-    hot_updates: List[MangaInfo]
-    timestamp: int = int(datetime.now().timestamp())
+class Type(BaseModel):
+    names: List[str] = Field(default_factory=list)
+    links: List[str] = Field(default_factory=list)
 
-@dataclass
-class ApiResponse:
-    """API响应格式"""
-    code: int
-    message: str
-    data: Optional[any] = None
-    timestamp: int = int(datetime.now().timestamp()) 
+class MangaInfo(BaseModel):
+    manga_id: str = Field(default="")
+    title: str = Field(default="")
+    description: str = Field(default="")
+    status: str = Field(default="")
+    author: Author = Field(default_factory=Author)
+    type: Genre = Field(default_factory=Genre)
+    cover: str = Field(default="")
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+class Chapter(BaseModel):
+    manga_id: str = Field(default="")
+    chapter_id: str = Field(default="")
+    title: str = Field(default="")
+    link: str = Field(default="")
+    order: int = Field(default=0)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+class ChapterInfo(BaseModel):
+    manga_id: str = Field(default="")
+    chapter_id: str = Field(default="")
+    title: str = Field(default="")
+    link: str = Field(default="")
+    order: int = Field(default=0)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+class Image(BaseModel):
+    image_id: str = Field(default="")
+    chapter_id: str = Field(default="")
+    manga_id: str = Field(default="")
+    url: str = Field(default="")
+    order: int = Field(default=0)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now) 

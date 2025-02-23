@@ -9,4 +9,6 @@ flask-cors>=4.0.0
 lxml>=5.1.0
 flask[async]
 python-dotenv
-patchright 
+patchright
+motor>=3.3.2
+pymongo>=4.6.1 
