@@ -22,6 +22,8 @@ import aiojobs
 from contextlib import asynccontextmanager
 from threading import Lock
 from lxml import html
+from utils.turnstile_solver import TurnstileSolver
+from utils.content_extractor import ContentExtractor
 
 from config.settings import (
     DATA_DIR, API_HOST, API_PORT, LOG_CONFIG
@@ -719,65 +721,29 @@ async def get_page_content_with_cloudscraper():
 
         
 async def get_chapter_content_with_playwright(chapter_url: str) -> Tuple[List[str], Optional[str], Optional[str]]:
+    """使用 Playwright 获取章节内容"""
     try:
-        logger.info("创建新浏览器上下文...")
-        context = await browser_manager.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            viewport={'width': 1920, 'height': 1080}
-        )
-        page = await context.new_page()
-
-        try:
-            # 禁用非必要资源拦截（关键！）
-            await page.route("**/*.css", lambda route: route.abort())
+        logger.info("初始化内容提取器...")
+        extractor = ContentExtractor(debug=True, headless=True)
+        
+        result = await extractor.extract_content(chapter_url)
+        
+        if result:
+            images = result.get('images', [])
+            if images:
+                logger.info(f"成功提取 {len(images)} 张图片")
+                return images, result.get('prev_chapter'), result.get('next_chapter')
+            else:
+                logger.warning("未找到任何图片")
+        else:
+            logger.warning("提取内容失败")
             
-            logger.info(f"智能加载页面: {chapter_url}")
-            await page.goto(chapter_url, wait_until="commit", timeout=25000)
+        return [], None, None
             
-            # 混合等待策略
-            await asyncio.sleep(3)  # 基础等待时间稍微增加
-            await page.wait_for_load_state("networkidle", timeout=30000)  # 增加等待时间
-            
-            # 触发滚动加载
-            logger.info("触发滚动加载机制...")
-            await page.evaluate(scroll_script)  # 上述滚动脚本
-            
-            # 等待图片容器更新
-            await page.wait_for_function("""() => {
-                const markers = [
-                    document.querySelector('div.loading:not([data-loaded])'), 
-                    document.querySelector('div#image-container:empty')
-                ];
-                return !markers.some(m => m !== null);
-            }""", timeout=30000)  # 增加等待时间
-
-            # 提取内容
-            logger.info("执行复合内容提取...")
-            image_urls = await page.evaluate("""() => {
-                return Array.from(
-                    document.querySelectorAll('picture source, img[loading="lazy"]'),
-                    img => img.srcset || img.src
-                ).filter(url => url.startsWith('http'));
-            }""")
-
-            # 提取导航链接（容错版）
-            nav_data = await page.evaluate("""() => ({
-                prev: document.querySelector('link[rel="prev"]')?.href,
-                next: document.querySelector('link[rel="next"]')?.href
-            })""")
-
-            return (
-                list(dict.fromkeys(image_urls)),  # 去重
-                nav_data['prev'].split('/')[-1] if nav_data['prev'] else None,
-                nav_data['next'].split('/')[-1] if nav_data['next'] else None
-            )
-
-        finally:
-            await context.close()
-            logger.info("浏览器上下文已安全关闭")
-
     except Exception as e:
-        logger.error(f"最终捕获异常: {type(e).__name__} - {str(e)}")
+        logger.error(f"获取章节内容时出错: {str(e)}")
+        import traceback
+        logger.error(f"错误堆栈:\n{traceback.format_exc()}")
         return [], None, None
 
     
@@ -1256,124 +1222,41 @@ async def get_chapter_content(manga_path: str, request: Request):
                 'timestamp': int(datetime.now().timestamp())
             }
             
-        # 获取页面
-        page = await browser_manager.get_page()
+        # 首先尝试使用 cloudscraper
+        logger.info("尝试使用 Cloudscraper 获取章节内容...")
+        image_urls, prev_chapter, next_chapter = await get_chapter_content_with_cloudscraper(chapter_url)
         
-        try:
-            # 设置请求头
-            await page.set_extra_http_headers({
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Referer': 'https://g-mh.org/'
-            })
+        # 如果 cloudscraper 失败，尝试使用 playwright
+        if not image_urls:
+            logger.info("Cloudscraper 失败，尝试使用 Playwright...")
+            image_urls, prev_chapter, next_chapter = await get_chapter_content_with_playwright(chapter_url)
             
-            # 访问页面
-            logger.info(f"访问章节页面: {chapter_url}")
-            response = await page.goto(
-                chapter_url,
-                wait_until='domcontentloaded',
-                timeout=30000
-            )
-            
-            if not response:
-                logger.error("页面访问失败：无响应")
-                return {
-                    'code': 500,
-                    'message': '页面访问失败',
-                    'data': None,
-                    'timestamp': int(datetime.now().timestamp())
-                }
-            
-            # 等待页面加载
-            await page.wait_for_load_state('networkidle', timeout=15000)
-            await page.wait_for_selector('div.imglist, div.chapter-img, div.manga-image', timeout=10000)
-            
-            # 滚动页面以加载懒加载图片
-            await page.evaluate("""
-                window.scrollTo(0, document.body.scrollHeight);
-                await new Promise(r => setTimeout(r, 2000));
-                window.scrollTo(0, 0);
-            """)
-            
-            # 等待图片加载
-            await page.wait_for_timeout(3000)
-            
-            # 提取图片URL
-            image_urls = await page.evaluate("""() => {
-                const images = new Set();
-                const selectors = [
-                    'div.imglist img',
-                    'div.chapter-img img',
-                    'div.manga-image img',
-                    'img[data-src]',
-                    'img[data-original]'
-                ];
-                
-                selectors.forEach(selector => {
-                    document.querySelectorAll(selector).forEach(img => {
-                        const src = img.src || img.dataset.src || img.dataset.original;
-                        if (src && src.startsWith('http')) {
-                            images.add(src);
-                        }
-                    });
-                });
-                
-                return Array.from(images);
-            }""")
-            
-            logger.info(f"找到 {len(image_urls)} 个图片")
-            
-            # 提取导航链接
-            nav_data = await page.evaluate("""() => {
-                const nav = { prev: null, next: null };
-                const links = document.querySelectorAll('a');
-                
-                links.forEach(link => {
-                    const text = link.textContent.trim();
-                    const href = link.href;
-                    if (href) {
-                        if (text.includes('上一章') || text.includes('上一話')) {
-                            nav.prev = href.replace('https://g-mh.org/manga/', '');
-                        } else if (text.includes('下一章') || text.includes('下一話')) {
-                            nav.next = href.replace('https://g-mh.org/manga/', '');
-                        }
-                    }
-                });
-                
-                return nav;
-            }""")
-            
-            # 构建返回数据
-            result_data = {
-                'images': image_urls,
-                'prev_chapter': nav_data['prev'],
-                'next_chapter': nav_data['next']
+        if not image_urls:
+            logger.warning("未找到任何图片")
+            return {
+                'code': 404,
+                'message': '未找到任何图片',
+                'data': None,
+                'timestamp': int(datetime.now().timestamp())
             }
             
-            # 缓存结果
-            if image_urls:
-                logger.info("缓存章节内容...")
-                cache.set(cache_key, result_data)
-                return {
-                    'code': 200,
-                    'message': 'success',
-                    'data': result_data,
-                    'timestamp': int(datetime.now().timestamp())
-                }
-            else:
-                logger.warning("未找到任何图片")
-                return {
-                    'code': 404,
-                    'message': '未找到任何图片',
-                    'data': None,
-                    'timestamp': int(datetime.now().timestamp())
-                }
-                
-        finally:
-            await browser_manager.close()
+        # 构建返回数据
+        result_data = {
+            'images': image_urls,
+            'prev_chapter': prev_chapter,
+            'next_chapter': next_chapter
+        }
+        
+        # 缓存结果
+        logger.info("缓存章节内容...")
+        cache.set(cache_key, result_data)
+        
+        return {
+            'code': 200,
+            'message': 'success',
+            'data': result_data,
+            'timestamp': int(datetime.now().timestamp())
+        }
             
     except Exception as e:
         logger.error(f"获取章节内容时出错: {str(e)}")
@@ -1988,8 +1871,118 @@ async def get_manga_info_with_playwright(manga_url: str) -> Tuple[dict, List[dic
                 title_element = await page.query_selector('h1')
                 if title_element:
                     manga_info['title'] = await title_element.text_content()
+                    
+                # 提取封面图片
+                cover_img = chapters_tree.xpath('//div[contains(@class, "manga-cover")]//img | //div[contains(@class, "cover")]//img')
+                if cover_img:
+                    manga_info['cover'] = normalize_image_url(cover_img[0].get('src', ''))
+                    
+                # 提取作者信息
+                author_info = {
+                    'names': [],
+                    'links': []
+                }
+                # 尝试多个可能的作者选择器
+                author_selectors = [
+                    '//div[contains(text(), "作者：")]/following-sibling::div//a',
+                    '//div[contains(text(), "作者:")]/following-sibling::div//a',
+                    '//div[contains(text(), "作者")]/following-sibling::div//a',
+                    '//div[contains(text(), "作家")]/following-sibling::div//a',
+                    '//div[contains(@class, "author")]//a',
+                    '//div[contains(@class, "manga-author")]//a',
+                    '//div[contains(@class, "info")]//div[contains(text(), "作者")]/following-sibling::div//a'
+                ]
                 
-                # 获取其他信息...
+                # 记录页面内容用于调试
+                debug_content = etree.tostring(chapters_tree, encoding='unicode', pretty_print=True)
+                logger.debug(f"页面内容:\n{debug_content}")
+                
+                for selector in author_selectors:
+                    logger.debug(f"尝试作者选择器: {selector}")
+                    author_elements = chapters_tree.xpath(selector)
+                    if author_elements:
+                        logger.info(f"使用选择器 '{selector}' 找到 {len(author_elements)} 个作者")
+                        for author in author_elements:
+                            name = ''.join(author.xpath('.//text()')).strip()
+                            href = author.get('href')
+                            logger.debug(f"找到作者: name='{name}', href='{href}'")
+                            if name:
+                                author_info['names'].append(name)
+                                if href:
+                                    author_info['links'].append(normalize_manga_url(href))
+                        if author_info['names']:  # 如果找到了作者信息，就跳出循环
+                            break
+                            
+                manga_info['author'] = author_info
+                
+                # 提取类型信息
+                type_info = {
+                    'names': [],
+                    'links': []
+                }
+                # 尝试多个可能的类型选择器
+                type_selectors = [
+                    '//div[contains(text(), "类型：")]/following-sibling::div//a',
+                    '//div[contains(text(), "类型:")]/following-sibling::div//a',
+                    '//div[contains(text(), "类型")]/following-sibling::div//a',
+                    '//div[contains(@class, "flex")]//div[text()="类型："]//following-sibling::div//a',
+                    '//div[contains(@class, "flex")]//div[text()="类型:"]//following-sibling::div//a',
+                    '//div[contains(@class, "flex")]//div[contains(text(), "类型")]//following-sibling::div//a',
+                    '//div[contains(@class, "flex")]//div[contains(text(), "分类")]//following-sibling::div//a',
+                    '//div[contains(@class, "info")]//div[contains(text(), "类型")]//following-sibling::div//a',
+                    '//div[contains(@class, "info")]//div[contains(text(), "分类")]//following-sibling::div//a',
+                    '//div[contains(@class, "genre")]//a',
+                    '//div[contains(@class, "manga-genre")]//a'
+                ]
+                
+                for selector in type_selectors:
+                    logger.debug(f"尝试类型选择器: {selector}")
+                    type_elements = chapters_tree.xpath(selector)
+                    if type_elements:
+                        logger.info(f"使用选择器 '{selector}' 找到 {len(type_elements)} 个类型")
+                        for type_tag in type_elements:
+                            name = ''.join(type_tag.xpath('.//text()')).strip()
+                            href = type_tag.get('href')
+                            logger.debug(f"找到类型: name='{name}', href='{href}'")
+                            if name:
+                                type_info['names'].append(name)
+                                if href:
+                                    type_info['links'].append(normalize_manga_url(href))
+                        if type_info['names']:  # 如果找到了类型信息，就跳出循环
+                            break
+                            
+                manga_info['type'] = type_info
+                
+                # 提取简介
+                description_selectors = [
+                    '//div[contains(@class, "flex")]//p[string-length(text()) > 10]/text()',
+                    '//div[contains(@class, "description")]//p[string-length(text()) > 10]/text()',
+                    '//div[contains(@class, "summary")]//p[string-length(text()) > 10]/text()',
+                    '//div[contains(@class, "manga-description")]//p[string-length(text()) > 10]/text()',
+                    '//div[contains(@class, "info")]//div[contains(text(), "简介") or contains(text(), "描述")]//following-sibling::div//p/text()'
+                ]
+                
+                for selector in description_selectors:
+                    description = chapters_tree.xpath(selector)
+                    if description:
+                        manga_info['description'] = description[0].strip()
+                        break
+                
+                # 提取状态
+                status_selectors = [
+                    '//h1//span/text()',
+                    '//div[contains(@class, "status")]//text()',
+                    '//div[contains(@class, "info")]//div[contains(text(), "状态")]//following-sibling::div//text()'
+                ]
+                
+                for selector in status_selectors:
+                    status_element = chapters_tree.xpath(selector)
+                    if status_element:
+                        manga_info['status'] = status_element[0].strip()
+                        break
+                
+                # 按照章节序号排序
+                chapters.sort(key=lambda x: extract_chapter_number(x['link']))
                 
                 return manga_info, chapters
 
@@ -2001,7 +1994,7 @@ async def get_manga_info_with_playwright(manga_url: str) -> Tuple[dict, List[dic
                 
     except Exception as e:
         logger.error(f"Playwright操作出错: {str(e)}")
-        raise
+        return None, []
 
 @app.get("/api/manga/chapter/{manga_path:path}")
 async def get_manga_chapters(manga_path: str):
@@ -2211,7 +2204,8 @@ async def get_chapter_content_with_cloudscraper(chapter_url: str) -> Tuple[List[
             browser={
                 'browser': 'chrome',
                 'platform': 'darwin',
-                'mobile': False
+                'mobile': False,
+                'custom': 'Chrome/122.0.0.0'
             },
             delay=10
         )
@@ -2219,7 +2213,7 @@ async def get_chapter_content_with_cloudscraper(chapter_url: str) -> Tuple[List[
         
         # 设置请求头
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
             'Accept-Encoding': 'identity',
@@ -2227,15 +2221,37 @@ async def get_chapter_content_with_cloudscraper(chapter_url: str) -> Tuple[List[
             'Upgrade-Insecure-Requests': '1',
             'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
             'Sec-Ch-Ua-Mobile': '?0',
-            'Sec-Ch-Ua-Platform': '"macOS"'
+            'Sec-Ch-Ua-Platform': '"Windows"'
         }
         scraper.headers.update(headers)
         logger.info(f"设置请求头: {headers}")
 
-        # 使用 asyncio 运行同步请求
+        # 首先尝试直接请求
         logger.info(f"开始请求章节页面: {chapter_url}")
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(None, lambda: scraper.get(chapter_url))
+
+        # 检查是否需要解决 Turnstile
+        if response.status_code == 403 or 'cf_clearance' not in scraper.cookies:
+            logger.info("检测到需要解决 Turnstile 验证...")
+            # 创建 Turnstile 解决器
+            solver = TurnstileSolver(headless=True, debug=True)  # 确保使用无头模式
+            
+            # 获取验证结果
+            result = await solver.solve(chapter_url)
+            
+            # 注释掉有问题的代码
+            # if not result or 'cf_clearance' not in result.get('cookies', {}):
+            #     logger.warning("Turnstile 验证失败")
+            #     return [], None, None
+                
+            # # 更新 cookies 和 user agent
+            # for name, value in result['cookies'].items():
+            #     scraper.cookies.set(name, value)
+            # scraper.headers['User-Agent'] = result['user_agent']
+            
+            # 直接返回空结果，让程序转向使用 Playwright
+            return [], None, None
 
         logger.info(f"Cloudscraper 响应状态码: {response.status_code}")
         logger.info(f"响应头: {dict(response.headers)}")
@@ -2302,118 +2318,24 @@ async def get_chapter_content_with_cloudscraper(chapter_url: str) -> Tuple[List[
         return [], None, None
 
 async def get_chapter_content_with_playwright(chapter_url: str) -> Tuple[List[str], Optional[str], Optional[str]]:
+    """使用 Playwright 获取章节内容"""
     try:
-        logger.info("初始化 Playwright...")
-        page = await browser_manager.get_page()
-        try:
-            # 设置资源拦截
-            logger.info("设置资源拦截规则...")
-            await page.route("**/*.{png,jpg,jpeg,gif,svg,css,woff2,woff}", lambda route: route.abort())
-            await page.route("**/*{analytics,tracker,advertisement,ad,stats}*", lambda route: route.abort())
-            
-            # 设置请求头
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                'Accept-Encoding': 'identity',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1'
-            }
-            await page.set_extra_http_headers(headers)
-            logger.info(f"设置请求头: {headers}")
-
-            # 访问页面，只等待 DOM 加载完成
-            logger.info(f"开始访问章节页面: {chapter_url}")
-            response = await page.goto(chapter_url, wait_until='domcontentloaded', timeout=15000)
-            
-            if response:
-                logger.info(f"页面响应状态码: {response.status}")
-                logger.info(f"页面响应头: {response.headers}")
-                
-                # 记录页面标题
-                title = await page.title()
-                logger.info(f"页面标题: {title}")
-                
-                # 固定等待 2 秒让页面渲染
-                logger.info("等待页面渲染 (2秒)...")
-                await page.wait_for_timeout(2000)
-                
-                # 获取页面内容
-                logger.info("获取页面内容...")
-                content = await page.content()
-                
-                # 保存调试信息
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                debug_content_path = os.path.join(DATA_DIR, f'debug_chapter_{timestamp}.html')
-                debug_screenshot_path = os.path.join(DATA_DIR, f'debug_chapter_{timestamp}.png')
-                
-                with open(debug_content_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                await page.screenshot(path=debug_screenshot_path, full_page=True)
-                
-                logger.info(f"调试信息已保存：\n内容：{debug_content_path}\n截图：{debug_screenshot_path}")
-                
-                # 记录页面基本信息
-                url = page.url
-                logger.info(f"当前页面URL: {url}")
-                
-                # 提取图片URL
-                logger.info("开始提取图片URL...")
-                image_urls = await page.evaluate("""() => {
-                    const images = [];
-                    const seen = new Set();
-                    const selectors = [
-                        'div.imglist img',
-                        'div.chapter-img img',
-                        'div.manga-image img'
-                    ];
-                    
-                    for (const selector of selectors) {
-                        const imgElements = document.querySelectorAll(selector);
-                        console.log(`使用选择器 '${selector}' 找到 ${imgElements.length} 个图片元素`);
-                        
-                        imgElements.forEach(img => {
-                            const src = img.src || img.dataset.src || img.dataset.original;
-                            if (src && !seen.has(src)) {
-                                console.log(`找到图片URL: ${src}`);
-                                images.push(src);
-                                seen.add(src);
-                            }
-                        });
-                    }
-                    return images;
-                }""")
-                
-                logger.info(f"总共找到 {len(image_urls)} 个图片URL")
-                for idx, url in enumerate(image_urls, 1):
-                    logger.info(f"图片 {idx}: {url}")
-                
-                # 提取导航链接
-                logger.info("开始提取导航链接...")
-                nav_data = await page.evaluate("""() => {
-                    const nav = { prev: null, next: null };
-                const prevLink = document.querySelector('a.prev');
-            const nextLink = document.querySelector('a.next');
-    
-                    if (prevLink) nav.prev = prevLink.href;
-                    if (nextLink) nav.next = nextLink.href;
-                return nav;
-                }""")
-                
-                prev_chapter = nav_data['prev'].replace('https://g-mh.org/', '') if nav_data['prev'] else None
-                next_chapter = nav_data['next'].replace('https://g-mh.org/', '') if nav_data['next'] else None
-                
-                logger.info(f"导航链接: prev={prev_chapter}, next={next_chapter}")
-                
-                return image_urls, prev_chapter, next_chapter
-                
+        logger.info("初始化内容提取器...")
+        extractor = ContentExtractor(debug=True, headless=True)
+        
+        result = await extractor.extract_content(chapter_url)
+        
+        if result:
+            images = result.get('images', [])
+            if images:
+                logger.info(f"成功提取 {len(images)} 张图片")
+                return images, result.get('prev_chapter'), result.get('next_chapter')
             else:
-                logger.error(f"页面访问失败，状态码: {response.status if response else 'None'}")
-                return [], None, None
-                
-        finally:
-            await browser_manager.close()
+                logger.warning("未找到任何图片")
+        else:
+            logger.warning("提取内容失败")
+            
+        return [], None, None
             
     except Exception as e:
         logger.error(f"获取章节内容时出错: {str(e)}")
