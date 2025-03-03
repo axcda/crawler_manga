@@ -2,6 +2,9 @@
 
 一个高性能的分布式网络爬虫系统，支持自动化数据采集、处理和存储。
 
+## 移动端地址
+https://github.com/axcda/Jmanga
+
 ## 项目描述
 
 Crawel-GMH 是一个基于 Python 的现代化网络爬虫框架，具有以下特点：
